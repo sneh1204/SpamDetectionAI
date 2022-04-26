@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
 from spacy.util import minibatch
 
-data_path = "data/data.csv"
+data_path = "data.csv"
 
 sns.set(style="darkgrid")
 
