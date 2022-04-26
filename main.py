@@ -1,21 +1,23 @@
 import random
-import spacy
+
 import pandas as pd
 import seaborn as sns
-from spacy.util import minibatch
-from sklearn.model_selection import train_test_split
+import spacy
+from matplotlib import pyplot as plt
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix
-from matplotlib import pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from spacy.util import minibatch
 
-## Paths
 data_path = "data/data.csv"
 
-## Configurations
 sns.set(style="darkgrid")
 
-## UDF's
-def train_model(model, train_data, optimizer, batch_size, epochs=10):
+
+def train_model(model1, train_data, optimizer, batch_size, epochs=10):
     losses = {}
     random.seed(1)
 
@@ -24,84 +26,59 @@ def train_model(model, train_data, optimizer, batch_size, epochs=10):
 
         batches = minibatch(train_data, size=batch_size)
         for batch in batches:
-            # Split batch into texts and labels
             texts, labels = zip(*batch)
 
-            # Update model with texts and labels
-            model.update(texts, labels, sgd=optimizer, losses=losses)
-        # print("Loss: {}".format(losses['textcat']))
+            model1.update(texts, labels, sgd=optimizer, losses=losses)
 
     return losses['textcat']
 
-def get_predictions(model, texts):
-    # Use the model's tokenizer to tokenize each input text
-    docs = [model.tokenizer(text) for text in texts]
 
-    # Use textcat to get the scores for each doc
-    textcat = model.get_pipe('textcat')
+def get_predictions(model1, texts):
+    docs = [model1.tokenizer(text) for text in texts]
+
+    textcat = model1.get_pipe('textcat')
     scores, _ = textcat.predict(docs)
 
-    # From the scores, find the label with the highest score/probability
     predicted_labels = scores.argmax(axis=1)
     predicted_class = [textcat.labels[label] for label in predicted_labels]
 
     return predicted_class
 
 
-######## Main method ########
-
 def main():
 
-    # Load dataset
     data = pd.read_csv(data_path)
     observations = len(data.index)
-    # print("Dataset Size: {}".format(observations))
 
-    # Create an empty spacy model
     nlp = spacy.blank("en")
 
-    # Create the TextCategorizer with exclusive classes and "bow" architecture
     text_cat = nlp.create_pipe(
         "textcat",
         config={
             "exclusive_classes": True,
             "architecture": "bow"})
 
-    # Adding the TextCategorizer to the created empty model
     nlp.add_pipe(text_cat)
 
-    # Add labels to text classifier
     text_cat.add_label("ham")
     text_cat.add_label("spam")
 
-    # Split data into train and test datasets
     x_train, x_test, y_train, y_test = train_test_split(
         data['text'], data['label'], test_size=0.33, random_state=7)
-
-    # Create the train and test data for the spacy model
     train_lables = [{'cats': {'ham': label == 'ham',
                               'spam': label == 'spam'}}  for label in y_train]
     test_lables = [{'cats': {'ham': label == 'ham',
                           'spam': label == 'spam'}}  for label in y_test]
 
-    # Spacy model data
     train_data = list(zip(x_train, train_lables))
     test_data = list(zip(x_test, test_lables))
 
-    # Model configurations
     optimizer = nlp.begin_training()
     batch_size = 5
     epochs = 10
 
-    # Training the model
     train_model(nlp, train_data, optimizer, batch_size, epochs)
 
-    # Sample predictions
-    # print(train_data[0])
-    # sample_test = nlp(train_data[0][0])
-    # print(sample_test.cats)
-
-    # Train and test accuracy
     train_predictions = get_predictions(nlp, x_train)
     test_predictions = get_predictions(nlp, x_test)
     train_accuracy = accuracy_score(y_train, train_predictions)
@@ -110,13 +87,42 @@ def main():
     print("Train accuracy: {}".format(train_accuracy))
     print("Test accuracy: {}".format(test_accuracy))
 
-    # Creating the confusion matrix graphs
     cf_train_matrix = confusion_matrix(y_train, train_predictions)
-    plt.figure(figsize=(10,8))
+    plt.figure(figsize=(10, 8))
     sns.heatmap(cf_train_matrix, annot=True, fmt='d')
+    plt.plot()
+    plt.show()
 
     cf_test_matrix = confusion_matrix(y_test, test_predictions)
-    plt.figure(figsize=(10,8))
+    plt.figure(figsize=(10, 8))
     sns.heatmap(cf_test_matrix, annot=True, fmt='d')
+    plt.plot()
+    plt.show()
+
+    classifiers(data['text'], data['label'])
+
+
+def classifiers(X, y):
+    print("\nTree Learning")
+    print("-------------------\n")
+
+    dtclass = DecisionTreeClassifier(random_state=0, max_depth=4)
+    rfclass = RandomForestClassifier(warm_start=True, oob_score=True)
+
+    models = [dtclass, rfclass]
+    names = ["Decision Tree Classifier", "Random Forest Classifier",
+             ]
+    vc = CountVectorizer()
+    X = vc.fit_transform(X)
+    y = y.apply(lambda x: 1 if x == 'spam' else 0)
+
+    x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+    for name, model in zip(names, models):
+        print(name)
+        model.fit(x_train, y_train)
+        train_score = accuracy_score(y_train, model.predict(x_train))
+        test_score = accuracy_score(y_test, model.predict(x_test))
+        print("Train Accuracy: {}, Test Accuracy: {}\n".format(train_score, test_score))
+
 
 main()
