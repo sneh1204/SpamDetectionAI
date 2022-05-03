@@ -1,11 +1,12 @@
 import random
 
+import joblib
 import pandas as pd
 import seaborn as sns
 import spacy
 from matplotlib import pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
@@ -45,6 +46,9 @@ def get_predictions(model1, texts):
     return predicted_class
 
 
+def textChecker(model, text) -> str:
+    return 'ham' if model.predict(text) == [0] else 'spam'
+
 def main():
 
     data = pd.read_csv(data_path)
@@ -68,7 +72,7 @@ def main():
     train_lables = [{'cats': {'ham': label == 'ham',
                               'spam': label == 'spam'}}  for label in y_train]
     test_lables = [{'cats': {'ham': label == 'ham',
-                          'spam': label == 'spam'}}  for label in y_test]
+                             'spam': label == 'spam'}} for label in y_test]
 
     train_data = list(zip(x_train, train_lables))
     test_data = list(zip(x_test, test_lables))
@@ -77,8 +81,10 @@ def main():
     batch_size = 5
     epochs = 10
 
-    train_model(nlp, train_data, optimizer, batch_size, epochs)
+    # joblib.dump(nlp, 'Spam_model.sav')
+    # train_model(nlp, train_data, optimizer, batch_size, epochs)
 
+    nlp = joblib.load('Spam_model.sav')
     train_predictions = get_predictions(nlp, x_train)
     test_predictions = get_predictions(nlp, x_test)
     train_accuracy = accuracy_score(y_train, train_predictions)
@@ -106,23 +112,30 @@ def classifiers(X, y):
     print("\nTree Learning")
     print("-------------------\n")
 
-    dtclass = DecisionTreeClassifier(random_state=0, max_depth=4)
-    rfclass = RandomForestClassifier(warm_start=True, oob_score=True)
+    dtclass = DecisionTreeClassifier(random_state=0, max_depth=4, class_weight='balanced')
+    rfclass = RandomForestClassifier(warm_start=True, oob_score=True, class_weight='balanced')
 
     models = [dtclass, rfclass]
-    names = ["Decision Tree Classifier", "Random Forest Classifier",
-             ]
-    vc = CountVectorizer()
+    names = ["Decision Tree Classifier", "Random Forest Classifier"]
+    vc = TfidfVectorizer()
+    # print(X[3])
     X = vc.fit_transform(X)
     y = y.apply(lambda x: 1 if x == 'spam' else 0)
+    # print(y.value_counts())
 
     x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+    # print(x_test.shape)
     for name, model in zip(names, models):
         print(name)
         model.fit(x_train, y_train)
         train_score = accuracy_score(y_train, model.predict(x_train))
         test_score = accuracy_score(y_test, model.predict(x_test))
         print("Train Accuracy: {}, Test Accuracy: {}\n".format(train_score, test_score))
+        # print(classification_report(y_test, model.predict(x_test)))
+    text = input("Enter the text that you want to check :: \n")
+    text = vc.transform([text])
+    # print(text.shape,"\n")
+    print(textChecker(models[1], text))
 
 
 main()
