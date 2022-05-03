@@ -12,4 +12,4 @@ Please download the libraries specified below first
 - sklearn
 - matplotlib
 
-Then run main.py using python 3 It will take around 2-3 mins for output to show.
+Then run main.py using python 3 It will take around 2-3 mins for output to show!
